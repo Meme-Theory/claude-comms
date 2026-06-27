@@ -115,7 +115,29 @@ class RawClient:
         return self.wait_for(lambda o: o.get("id") == msg_id, timeout)
 
 
+def unit_check_gating():
+    """In-process check of the gate-aware trust framing in _event_for (the subprocess
+    wire test below only exercises the open-net path)."""
+    import channel_bridge as cb
+    rec = {"from": "claude-x", "text": "hi", "target": "#project"}
+
+    cb.core.client.password = None
+    cb.core.embedded["gated"] = False
+    c_open, m_open = cb._event_for(rec)
+    check("open net -> trust=untrusted + inline UNTRUSTED marker",
+          m_open["trust"] == "untrusted" and m_open["auth"] == "open"
+          and "UNTRUSTED" in c_open.upper())
+
+    cb.core.client.password = "coolbeans"
+    c_gated, m_gated = cb._event_for(rec)
+    check("passphrase link -> trust=gated, auth=passphrase",
+          m_gated["trust"] == "gated" and m_gated["auth"] == "passphrase")
+    check("gated peer nick still marked forgeable", m_gated["forgeable"] == "true")
+    cb.core.client.password = None  # reset so nothing downstream is affected
+
+
 def main():
+    unit_check_gating()
     port = free_port()
     server_proc = subprocess.Popen(
         [sys.executable, os.path.join(ROOT, "server", "ircd.py"),
