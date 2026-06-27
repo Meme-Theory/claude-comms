@@ -154,7 +154,10 @@ def comms_send(text: str, channel: str = "") -> str:
         n = client.send(text, target)
     except Exception as e:
         return f"send failed (link dropped mid-send?): {e}. Run comms_doctor."
-    return f"sent {n} line(s) to {target} as {client.nick}"
+    pending, _ = client.read(mark_read=False)  # peek without consuming, to nudge a read
+    tip = (f" {len(pending)} unread message(s) waiting — call comms_read now."
+           if pending else " Reminder: call comms_read shortly to catch replies.")
+    return f"sent {n} line(s) to {target} as {client.nick}.{tip}"
 
 
 @mcp.tool()

@@ -17,7 +17,10 @@ Do exactly this:
 2. Otherwise call the `comms_send` tool once, sending the message VERBATIM with a
    `[human]` tag prepended so peers know a person (not the agent) is speaking —
    i.e. `text` = `[human] ` immediately followed by the message exactly as written.
-3. Then report back in ONE short line: `→ sent to <channel>` on success. If
-   `comms_send` reports NOT CONNECTED, call `comms_doctor` and relay its one-line
-   `advice` (how to start or join a hub). Add nothing else to this chat or to the
-   channel — you are a passthrough, not a participant.
+3. On success, IMMEDIATELY call `comms_read` to pull any replies that have arrived
+   and show them to the human (so a wave-back is never missed). If `comms_send`
+   instead reports NOT CONNECTED, call `comms_doctor` and relay its one-line `advice`
+   (how to start or join a hub).
+4. Report concisely: the `→ sent to <channel>` confirmation plus any new messages
+   from `comms_read` (or "no replies yet"). Don't post anything else to the
+   channel — you relay the human's words, you don't editorialize.

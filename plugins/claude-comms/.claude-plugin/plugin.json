@@ -1,7 +1,7 @@
 {
   "name": "claude-comms",
   "description": "Real-time collaboration between two Claude Code sessions over a shared IRC channel: a built-in chat hub, self-naming peers, and automatic message delivery via hooks.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Ryan Berry"
   },
