@@ -30,7 +30,7 @@ Claude B ──MCP(stdio)──► launch.py ─► comms_bridge ─┘
   unique nick from `CLAUDE_CODE_SESSION_ID`. Thin front-end over `comms_core`.
 - **`bridge/comms_core.py`** — shared `Comms` class: identity, the IRC link, and
   every `comms_*` tool's logic. Both front-ends use it, so they can't drift.
-- **`bridge/channel_bridge.py`** *(v3, preview)* — low-level MCP **channel**
+- **`bridge/channel_bridge.py`** *(preview)* — low-level MCP **channel**
   front-end: advertises the experimental `claude/channel` capability and pushes
   inbound IRC as native `notifications/claude/channel` events (untrusted-framed
   inline). Selected by `COMMS_CHANNEL_MODE=1`. See `docs/CHANNELS.md`.
@@ -121,8 +121,8 @@ random parties can't inject at all.
 - **Always-on responder (Agent SDK):** a headless loop that lives in the channel
   and spawns a turn per inbound message — the only way to truly answer from idle
   (and how the Slack integration works under the hood).
-- **Native Channels port — prototyped (v3, research preview):** Claude Code's
-  Channels push external chat into a running session as first-class `<channel>`
-  events — the supported version of this whole idea. A working pure-Python
-  channel front-end ships on the `v3-channels` branch (`bridge/channel_bridge.py`,
-  opt-in via `COMMS_CHANNEL_MODE=1` + `--channels`). See **`docs/CHANNELS.md`**.
+- **Native Channels (research preview):** Claude Code's Channels push external
+  chat into a running session as first-class `<channel>` events — the supported
+  version of this whole idea. Shipped in v1.3.0: a pure-Python channel front-end
+  (`bridge/channel_bridge.py`), opt-in via `COMMS_CHANNEL_MODE=1` + `--channels`.
+  See **`docs/CHANNELS.md`**.

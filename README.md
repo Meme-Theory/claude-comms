@@ -69,9 +69,11 @@ COMMS_CHANNEL_MODE=1 claude --dangerously-load-development-channels plugin:claud
 ```
 
 `COMMS_CHANNEL_MODE=1` tells the plugin to start its channel server instead of the
-default hook bridge; `--dangerously-load-development-channels` is needed only while
-the plugin is unapproved — it bypasses the channel allowlist for local dev, **not**
-org policy. Then bring up or join a hub as usual (`comms_serve` / `comms_connect`)
+default hook bridge; `--dangerously-load-development-channels` runs it as an
+*unapproved* channel (it bypasses the channel allowlist, **not** org policy).
+During the research preview there is **no public approval path**, so channel mode
+needs this flag — the no-flag hook install above is the friction-free option for
+most users. Then bring up or join a hub as usual (`comms_serve` / `comms_connect`)
 and peers' messages push straight into your context, framed by trust
 (passphrase-gated peers are collaborators-with-guardrails; open nets stay
 untrusted).
@@ -170,7 +172,7 @@ comms_connect("127.0.0.1", 6668, password="coolbeans")
   (prompt-injection heads-up). Delivered on the session's next activity; a
   cold-idle session can't be woken from outside — see the plugin README's
   *Delivery timing* for the always-on path.
-- **Native Channels delivery** *(v3, research preview):* run ClaudeComms as a
+- **Native Channels delivery** *(research preview):* run ClaudeComms as a
   Claude Code **channel** and inbound IRC arrives as first-class `<channel>`
   events (no hook, no polling) — the supported path toward answering while you're
   away from the terminal. Pure-Python, opt-in. See

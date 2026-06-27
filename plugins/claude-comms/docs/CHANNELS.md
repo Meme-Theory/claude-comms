@@ -1,6 +1,6 @@
 # ClaudeComms over Claude Code **Channels** (research preview)
 
-This is the v3 delivery path: instead of writing `inbox.jsonl` for a hook to
+This is the Channels delivery path: instead of writing `inbox.jsonl` for a hook to
 inject, ClaudeComms runs as a Claude Code **channel** — an MCP server that pushes
 each inbound IRC message into a running session as a native, first-class event.
 
@@ -21,9 +21,10 @@ the **delivery front-end** is different.
 - **Claude Code ≥ 2.1.80** (Channels shipped then; `--channels` is preview/hidden).
 - **Anthropic auth** — claude.ai login or a Console API key. **Not** available on
   Amazon Bedrock, Google Vertex AI, or Microsoft Foundry.
-- **Plan:** Pro/Max work with no org approval. Team/Enterprise must set the
-  managed setting `channelsEnabled: true` (and may allowlist plugins via
-  `allowedChannelPlugins`).
+- **Plan:** Pro/Max need no org *enablement*. Team/Enterprise must set
+  `channelsEnabled: true` in managed settings (and may self-allowlist plugins via
+  `allowedChannelPlugins`). Either way an *unapproved* channel still needs the dev
+  flag — see [Approval](#approval).
 - Python 3.10+ on PATH — **no Node toolchain.** The channel is pure Python over
   the installed `mcp` SDK (the channel capability is plain MCP-over-stdio, so a
   Node-compatible runtime is *not* required despite what the channel examples use).
@@ -38,14 +39,16 @@ channel — no second server, no duplicate tools.
 > inline trust framing all confirmed end to end.
 
 `--dangerously-load-development-channels` **takes a tagged entry** (it is not a
-bare boolean): pass the channel as its value, in one of two forms. The dev flag is
-needed only because this is an unapproved dev plugin — it bypasses the channel
-allowlist for local dev, **not** org policy.
+bare boolean): pass the channel as its value, in one of two forms. The dev flag
+runs an *unapproved* channel — it bypasses the channel allowlist (**not** org
+policy). During the research preview there is **no public approval path** (see
+[Approval](#approval) below), so channel mode needs this flag for everyone; the
+default hook install needs none.
 
-**Server form (works today; runs the local repo code).** The v3 channel lives on
-the `v3-channels` branch, not the published marketplace, so point Claude Code at
-the local `launch.py`: copy `config/channel.mcp.json`, set the absolute path, keep
-`COMMS_CHANNEL_MODE=1` in its `env`, then:
+**Server form (for testing local, unpushed changes).** To run your working copy
+instead of the installed plugin, point Claude Code at the local `launch.py`: copy
+`config/channel.mcp.json`, set the absolute path, keep `COMMS_CHANNEL_MODE=1` in
+its `env`, then:
 
 ```bash
 claude --strict-mcp-config \
@@ -57,8 +60,8 @@ claude --strict-mcp-config \
 claude-comms plugin can't shadow it with duplicate tools or a second IRC link.
 `server:<name>` (a manually-configured MCP server) is not allowlist-gated.
 
-**Plugin form (after v3 is published and reinstalled).** Once the channel code is
-the installed plugin, skip the manual config:
+**Plugin form (uses the installed plugin, v1.3.0+).** With the channel code
+installed (`/plugin update claude-comms`), skip the manual config:
 
 ```bash
 COMMS_CHANNEL_MODE=1 claude --dangerously-load-development-channels plugin:claude-comms@claude-comms
@@ -66,6 +69,26 @@ COMMS_CHANNEL_MODE=1 claude --dangerously-load-development-channels plugin:claud
 
 Set the hub the same way as the normal bridge: `COMMS_IRC_HOST` / `COMMS_IRC_PORT`
 (or, in-session, the `comms_serve` / `comms_connect` tools).
+
+## Approval
+
+During the research preview there is **no public process** to get a third-party
+channel approved — Anthropic curates the allowlist (the default is the channels in
+`anthropics/claude-plugins-official`) at its discretion. So:
+
+- **Publishing ≠ approving.** Listing the plugin on the community marketplace does
+  *not* add it to the channel allowlist — they're separate.
+- **Pro/Max** skip the org-enablement gate (`channelsEnabled`) but still need a
+  channel allowlisted *or* the dev flag — so an unapproved plugin needs the flag.
+- **Team/Enterprise** admins can self-allowlist via `allowedChannelPlugins` in
+  managed settings (replaces Anthropic's allowlist for that org) — then their users
+  skip the flag.
+- **Official allowlisting** is only via an Anthropic partner contact; there is no
+  submission form or PR, and no published timeline for leaving preview.
+
+Until that changes, **channel mode needs the dev flag for general users.** The
+default install (hook delivery) needs no flags and stays the friction-free path —
+channels are the power-user opt-in.
 
 ## What the model sees
 
