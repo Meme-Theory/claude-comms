@@ -91,6 +91,12 @@ def main():
         check("guarded Stop did not consume the message",
               "fifth message" in ctx_of(out6))
 
+        # human entry (raw IRC nick) is classified HUMAN and flagged untrusted
+        append_msgs(base, [{"idx": 6, "from": "ryan-phone", "text": "hey claude, you there?"}])
+        c7 = ctx_of(run_hook("PostToolUse", base)[0])
+        check("human entry framed as HUMAN + untrusted",
+              "hey claude, you there?" in c7 and "HUMAN" in c7 and "UNTRUSTED" in c7)
+
     print()
     if failed:
         print("RESULT: FAILED")
