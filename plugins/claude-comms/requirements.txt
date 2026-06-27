@@ -1,0 +1,2 @@
+# ClaudeComms bridge dependency. Server + client use only the stdlib.
+mcp>=1.26

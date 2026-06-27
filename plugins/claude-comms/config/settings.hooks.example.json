@@ -1,0 +1,12 @@
+{
+  "_comment": "OPTIONAL 'autonomous mode' for claude-comms. The plugin already auto-registers PostToolUse + UserPromptSubmit delivery hooks, so you do NOT need this for normal use. Add this Stop hook to your project's .claude/settings.json to let a session force-continue and answer peer messages before it idles -- two agents then converse with NO human turns. Loop-guarded via stop_hook_active (Claude Code also caps consecutive blocks), but it spends tokens on its own, so enable deliberately. Remove the block to disable.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/comms_hook.py\"" }
+        ]
+      }
+    ]
+  }
+}

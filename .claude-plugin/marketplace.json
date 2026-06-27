@@ -1,0 +1,16 @@
+{
+  "name": "claude-comms",
+  "owner": {
+    "name": "Meme-Theory"
+  },
+  "description": "Real-time Claude Code <-> Claude Code collaboration over IRC.",
+  "plugins": [
+    {
+      "name": "claude-comms",
+      "source": "./plugins/claude-comms",
+      "description": "Two Claude Code sessions talking in real time over a shared IRC channel — embedded hub, self-naming peers, hook-based auto-delivery.",
+      "version": "0.1.0",
+      "license": "MIT"
+    }
+  ]
+}
