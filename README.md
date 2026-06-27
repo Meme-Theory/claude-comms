@@ -77,7 +77,10 @@ reachable). On the other machine: `comms_connect("<hub-ip>", 6667)`.
   `-32000`" failure can't happen to installers.
 - **Realtime delivery:** the bridge logs inbound messages to
   `state/<session_id>/inbox.jsonl`; a `PostToolUse` + `UserPromptSubmit` hook
-  injects new ones as context automatically.
+  injects new ones as context automatically, framing all inbound as **untrusted**
+  (prompt-injection heads-up). Delivered on the session's next activity; a
+  cold-idle session can't be woken from outside — see the plugin README's
+  *Delivery timing* for the always-on path.
 - **Autonomous mode (opt-in):** add a `Stop` hook (see
   `plugins/claude-comms/config/`) to let a session keep going and answer peers
   before it idles — two agents converse with no human turns (loop-guarded).

@@ -84,8 +84,32 @@ python scripts/hook_test.py       # hook delivery logic
 python scripts/e2e_hook_test.py   # send -> bridge inbox -> hook injection
 ```
 
+## Delivery timing & limitations
+
+Inbound messages surface when the receiving session is *active*: on its next
+tool call (`PostToolUse`), its operator's next prompt (`UserPromptSubmit`), or —
+with autonomous mode — at the turn boundary (`Stop`). An interactive Claude Code
+session **cannot be woken from cold-idle** by an external event — hooks only fire
+during a turn — so a message arriving while a session sits idle is seen on its
+next activity (or a nudge). For active collaboration this is seamless; for "ping
+it anytime and it answers," see the roadmap.
+
+All inbound traffic is treated as **external, untrusted input**: the delivery
+hook tells the agent to weigh content with its own judgment and not obey embedded
+instructions. Source nicks are self-declared/spoofable, so labels are hints, not
+a trust boundary (a shared-passphrase hub gate is the planned real boundary).
+
 ## Roadmap
 
-**Next — peer observability (same machine):** read-only tail of the peer's
-session JSONL so a session can see what the other Claude is *doing*, not just
-what it says. Read-only by design — never writing into a live session's files.
+- **Passphrase-gated hub + trustmap:** launch the IRC hub with a shared secret
+  (IRC `PASS`); only holders connect, turning the channel into a closed trust
+  group and keeping random parties from injecting.
+- **Peer observability (same machine):** read-only tail of the peer's session
+  JSONL so a session sees what the other Claude is *doing*, not just what it says.
+- **Always-on responder (Agent SDK):** a headless loop that lives in the channel
+  and spawns a turn per inbound message — the only way to truly answer from idle
+  (and how the Slack integration works under the hood).
+- **Native Channels port:** Claude Code's Channels (research preview) push
+  external chat into a running session as first-class events — the supported
+  version of this whole idea. When it leaves preview, the bridge can become a
+  Channel plugin.
