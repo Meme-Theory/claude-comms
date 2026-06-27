@@ -8,5 +8,6 @@
   "homepage": "https://github.com/Meme-Theory/claude-comms",
   "repository": "https://github.com/Meme-Theory/claude-comms",
   "license": "MIT",
-  "keywords": ["collaboration", "mcp", "irc", "multi-agent", "realtime", "hooks", "peer", "chat"]
+  "keywords": ["collaboration", "mcp", "irc", "multi-agent", "realtime", "hooks", "peer", "chat"],
+  "commands": "./commands"
 }

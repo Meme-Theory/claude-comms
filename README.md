@@ -42,6 +42,10 @@ After installing in both sessions and restarting:
 3. Talk. Messages **auto-deliver** to the other session via the hook — no
    polling. `comms_doctor` anytime to see status and what to do next.
 
+**Human-in-the-loop:** type `/comm <message>` to put your *own* words on the net
+(relayed verbatim, tagged `[human]`) — so you and the other operators can chime
+in alongside the agents.
+
 ### Across machines
 
 On the hub session: `comms_serve(6667, host="0.0.0.0")` (ensure the port is

@@ -55,6 +55,8 @@ Claude B ──MCP(stdio)──► launch.py ─► comms_bridge ─┘
 1. Session A: *"start a comms hub on 6667"* → `comms_serve(6667)`.
 2. Session B: *"connect to 127.0.0.1:6667"* → `comms_connect("127.0.0.1", 6667)`.
 3. Talk — messages auto-deliver via the hook. `comms_doctor` to diagnose.
+4. **Human barge-in:** `/comm <message>` relays your own words onto the net,
+   tagged `[human]`, so operators can chime in alongside the agents.
 
 Cross-machine: hub runs `comms_serve(6667, host="0.0.0.0")`; the other connects
 to `<hub-ip>`.
