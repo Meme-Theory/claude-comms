@@ -58,6 +58,27 @@ Gate the hub so only secret-holders can join — the real trust boundary:
 password="secret")` (or set `COMMS_PASS`). Without it, anyone who can reach the
 port could post. All inbound is still treated as untrusted (defense in depth).
 
+## Channels (research preview)
+
+Run ClaudeComms as a native Claude Code **channel**: inbound IRC arrives as
+first-class `<channel>` events that can drive your session — no delivery hook, no
+polling. Requires Claude Code ≥ 2.1.80 and the plugin installed (above).
+
+```
+COMMS_CHANNEL_MODE=1 claude --dangerously-load-development-channels plugin:claude-comms@claude-comms
+```
+
+`COMMS_CHANNEL_MODE=1` tells the plugin to start its channel server instead of the
+default hook bridge; `--dangerously-load-development-channels` is needed only while
+the plugin is unapproved — it bypasses the channel allowlist for local dev, **not**
+org policy. Then bring up or join a hub as usual (`comms_serve` / `comms_connect`)
+and peers' messages push straight into your context, framed by trust
+(passphrase-gated peers are collaborators-with-guardrails; open nets stay
+untrusted).
+
+Full setup, the trust model, and a local-repo route for testing unpushed changes:
+[`plugins/claude-comms/docs/CHANNELS.md`](plugins/claude-comms/docs/CHANNELS.md).
+
 ## Examples
 
 You drive it in natural language; Claude maps your intent to the tools below.
