@@ -58,14 +58,75 @@ Gate the hub so only secret-holders can join — the real trust boundary:
 password="secret")` (or set `COMMS_PASS`). Without it, anyone who can reach the
 port could post. All inbound is still treated as untrusted (defense in depth).
 
+## Examples
+
+You drive it in natural language; Claude maps your intent to the tools below.
+
+### Two Claude sessions collaborating
+
+```
+Session A (host)
+  you: "start a comms hub and tell the other session we're starting the auth refactor"
+  A  -> comms_serve(6667)
+        comms_send("starting the auth refactor — can you take the tests?")
+
+Session B (joined via comms_connect("127.0.0.1", 6667))
+  the delivery hook auto-injects it, untrusted-framed:
+        ClaudeComms — [claude-ab12cd | peer-agent] starting the auth refactor — can you take the tests?
+  you: "tell A you've got the tests"
+  B  -> comms_send("on it — writing tests against the new token flow")
+```
+
+A sees B's reply on its next turn — no copy/paste, no shared screen.
+
+### A human jumps in from any IRC client
+
+The hub is a real IRC server, so a person can join with mIRC / HexChat / a phone
+app and talk to the agents directly:
+
+```
+/server 127.0.0.1 6667        (your hub's host; add the passphrase if gated)
+/join #project
+hey claude — where are you two at?
+```
+
+The sessions receive it flagged as human-claimed (and still untrusted):
+
+```
+ClaudeComms — [dave | claims-human] hey claude — where are you two at?
+```
+
+From *inside* a Claude session, a human can instead use the bundled command:
+
+```
+/comm hey claude — where are you two at?
+```
+
+which relays the line verbatim (tagged `[human]`) and then checks for replies.
+
+### A private net — and switching to one mid-session
+
+```
+comms_disconnect()                        # leave/stop the current hub
+comms_serve(6668, password="coolbeans")   # new passphrase-gated hub; you're in
+```
+
+Teammates join with the secret:
+
+```
+comms_connect("127.0.0.1", 6668, password="coolbeans")
+```
+
+`comms_doctor()` then reports `auth: on` and everyone present.
+
 ## Tools
 
 | tool | purpose |
 |------|---------|
 | `comms_doctor()` | validate deps/identity/reachability/connection; advises next step |
-| `comms_serve(port, host)` | stand up an **embedded IRC hub** on a port (no separate process) |
-| `comms_connect(host, port)` | point this session at a specific hub |
-| `comms_disconnect()` | drop the link |
+| `comms_serve(port=6667, host="127.0.0.1", password="")` | stand up an **embedded IRC hub** on a port (no separate process); `password` gates it |
+| `comms_connect(host, port, channel="", nick="", password="")` | point this session at a specific hub (pass `password` if gated) |
+| `comms_disconnect()` | leave the net — drop the link **and stop your embedded hub** (lets you shift nets) |
 | `comms_send(text, channel="")` | message peer session(s) |
 | `comms_read(since=None)` | pull new peer messages (also auto-delivered by the hook) |
 | `comms_peers(channel="")` | who's connected |
@@ -96,11 +157,13 @@ port could post. All inbound is still treated as untrusted (defense in depth).
 
 ```
 cd plugins/claude-comms
-python scripts/tools_test.py      # segregated tool-driven connection (serve/doctor/connect)
-python scripts/mcp_smoke.py       # MCP stdio handshake + tools
-python scripts/selftest.py        # IRC transport
-python scripts/hook_test.py       # hook delivery logic
-python scripts/e2e_hook_test.py   # send -> bridge inbox -> hook injection
+python scripts/tools_test.py        # tool-driven connect/serve/doctor + mid-session shift
+python scripts/pass_test.py         # passphrase gate (accept/reject, multi-word, pre-auth WHO)
+python scripts/mcp_smoke.py         # MCP stdio handshake + tools
+python scripts/selftest.py          # IRC transport
+python scripts/hook_test.py         # hook delivery logic (cursor, Stop, human/peer framing)
+python scripts/restart_idx_test.py  # message index survives a bridge restart
+python scripts/e2e_hook_test.py     # send -> bridge inbox -> hook injection
 ```
 
 ## Layout
