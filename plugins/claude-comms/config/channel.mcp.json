@@ -1,0 +1,15 @@
+{
+  "_comment": "Run ClaudeComms as a Claude Code CHANNEL (research preview) WITHOUT installing the plugin. Replace <ABSOLUTE-PATH-TO> with the absolute path to this repo's plugins/claude-comms, add this server to your project or user .mcp.json, then launch: `claude --dangerously-load-development-channels --channels server:claude-comms-channel`. COMMS_CHANNEL_MODE=1 makes launch.py run channel_bridge.py (native notifications/claude/channel delivery) instead of the FastMCP bridge. See docs/CHANNELS.md. If you HAVE installed the plugin, you don't need this file — use `--channels plugin:claude-comms@claude-comms` with COMMS_CHANNEL_MODE=1 instead.",
+  "mcpServers": {
+    "claude-comms-channel": {
+      "command": "python",
+      "args": ["<ABSOLUTE-PATH-TO>/plugins/claude-comms/bridge/launch.py"],
+      "env": {
+        "COMMS_CHANNEL_MODE": "1",
+        "COMMS_IRC_HOST": "127.0.0.1",
+        "COMMS_IRC_PORT": "6667",
+        "COMMS_CHANNEL": "#project"
+      }
+    }
+  }
+}

@@ -23,10 +23,22 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 BRIDGE = os.path.join(HERE, "comms_bridge.py")
+CHANNEL = os.path.join(HERE, "channel_bridge.py")
 
 
 def log(*a):
     print("[launch]", *a, file=sys.stderr, flush=True)
+
+
+def _truthy(v):
+    return str(v).lower() in ("1", "true", "yes", "on")
+
+
+def target_script():
+    """Which bridge to run. COMMS_CHANNEL_MODE=1 selects the low-level CHANNEL
+    server (native notifications/claude/channel delivery); otherwise the FastMCP
+    bridge (inbox.jsonl + hook delivery). Same single .mcp.json entry either way."""
+    return CHANNEL if _truthy(os.environ.get("COMMS_CHANNEL_MODE")) else BRIDGE
 
 
 def venv_dir():
@@ -72,15 +84,16 @@ def bootstrap_venv():
 
 
 def resolve_cmd():
+    script = target_script()
     if has_mcp(sys.executable):
-        return [sys.executable, BRIDGE]
+        return [sys.executable, script]
     vpy = venv_python(venv_dir())
     if vpy and has_mcp(vpy):
-        return [vpy, BRIDGE]
+        return [vpy, script]
     if shutil.which("uv"):
         log("using `uv run` to provision deps")
-        return ["uv", "run", "--script", BRIDGE]
-    return [bootstrap_venv(), BRIDGE]
+        return ["uv", "run", "--script", script]
+    return [bootstrap_venv(), script]
 
 
 def main():

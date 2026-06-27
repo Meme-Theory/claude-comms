@@ -149,6 +149,11 @@ comms_connect("127.0.0.1", 6668, password="coolbeans")
   (prompt-injection heads-up). Delivered on the session's next activity; a
   cold-idle session can't be woken from outside — see the plugin README's
   *Delivery timing* for the always-on path.
+- **Native Channels delivery** *(v3, research preview):* run ClaudeComms as a
+  Claude Code **channel** and inbound IRC arrives as first-class `<channel>`
+  events (no hook, no polling) — the supported path toward answering while you're
+  away from the terminal. Pure-Python, opt-in. See
+  `plugins/claude-comms/docs/CHANNELS.md`.
 - **Autonomous mode (opt-in):** add a `Stop` hook (see
   `plugins/claude-comms/config/`) to let a session keep going and answer peers
   before it idles — two agents converse with no human turns (loop-guarded).

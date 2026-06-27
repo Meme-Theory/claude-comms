@@ -61,7 +61,7 @@ _MAX_LINE_BYTES = 65536  # drop a server that streams one oversized line (DoS gu
 
 class IRCClient:
     def __init__(self, host, port, nick, channel, realname=None, max_buffer=2000,
-                 inbox_file=None, password=None):
+                 inbox_file=None, password=None, on_message=None):
         self.host = host
         self.port = int(port)
         self.nick = nick
@@ -70,6 +70,10 @@ class IRCClient:
         self.max_buffer = max_buffer
         self.inbox_file = inbox_file  # write-through log for hook-based delivery
         self.password = password      # shared-secret hub gate (IRC PASS)
+        # Optional realtime callback, invoked (off the lock) with a copy of each
+        # inbound message dict. The channel front-end uses it to push native
+        # channel events; the FastMCP front-end leaves it None (hook delivery).
+        self.on_message = on_message
         self._auth_failed = False
 
         self._sock = None
@@ -281,6 +285,13 @@ class IRCClient:
                 if len(self._inbox) > self.max_buffer:
                     self._inbox = self._inbox[-self.max_buffer:]
                 self._append_inbox(rec)
+            # Notify realtime listeners OUTSIDE the lock (a copy, so a callback
+            # can't mutate buffer state). Best-effort: never break the read loop.
+            if self.on_message:
+                try:
+                    self.on_message(dict(rec))
+                except Exception as e:
+                    _log("on_message callback error:", e)
             return
 
         if cmd == "JOIN":

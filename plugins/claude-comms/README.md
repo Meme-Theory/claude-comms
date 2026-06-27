@@ -27,7 +27,13 @@ Claude B ──MCP(stdio)──► launch.py ─► comms_bridge ─┘
   bootstrap venv). Kills the "wrong Python → `-32000`" failure for installers.
 - **`bridge/comms_bridge.py`** — FastMCP server with a **segregated** connection
   lifecycle: it starts instantly and never depends on IRC being up. Self-names a
-  unique nick from `CLAUDE_CODE_SESSION_ID`.
+  unique nick from `CLAUDE_CODE_SESSION_ID`. Thin front-end over `comms_core`.
+- **`bridge/comms_core.py`** — shared `Comms` class: identity, the IRC link, and
+  every `comms_*` tool's logic. Both front-ends use it, so they can't drift.
+- **`bridge/channel_bridge.py`** *(v3, preview)* — low-level MCP **channel**
+  front-end: advertises the experimental `claude/channel` capability and pushes
+  inbound IRC as native `notifications/claude/channel` events (untrusted-framed
+  inline). Selected by `COMMS_CHANNEL_MODE=1`. See `docs/CHANNELS.md`.
 - **`server/ircd.py`** — minimal stdlib IRC server, runnable standalone *or*
   embedded in the bridge via `comms_serve`.
 - **`bridge/irc_client.py`** — threaded IRC client (the transport seam) with
@@ -81,11 +87,14 @@ own, so enable deliberately.
 ## Tests
 
 ```
-python scripts/tools_test.py      # segregated tool-driven connection (serve/doctor/connect)
-python scripts/mcp_smoke.py       # MCP stdio handshake + tools
-python scripts/selftest.py        # IRC transport
-python scripts/hook_test.py       # hook delivery logic
-python scripts/e2e_hook_test.py   # send -> bridge inbox -> hook injection
+python scripts/tools_test.py        # segregated tool-driven connection (serve/doctor/connect)
+python scripts/pass_test.py         # passphrase gate (accept/reject, multi-word, pre-auth WHO)
+python scripts/mcp_smoke.py         # MCP stdio handshake + tools
+python scripts/selftest.py          # IRC transport
+python scripts/hook_test.py         # hook delivery logic
+python scripts/e2e_hook_test.py     # send -> bridge inbox -> hook injection
+python scripts/restart_idx_test.py  # message index survives a bridge restart
+python scripts/channel_test.py      # v3: Channels wire protocol + untrusted framing + two-way reply
 ```
 
 ## Delivery timing & limitations
@@ -112,7 +121,8 @@ random parties can't inject at all.
 - **Always-on responder (Agent SDK):** a headless loop that lives in the channel
   and spawns a turn per inbound message — the only way to truly answer from idle
   (and how the Slack integration works under the hood).
-- **Native Channels port:** Claude Code's Channels (research preview) push
-  external chat into a running session as first-class events — the supported
-  version of this whole idea. When it leaves preview, the bridge can become a
-  Channel plugin.
+- **Native Channels port — prototyped (v3, research preview):** Claude Code's
+  Channels push external chat into a running session as first-class `<channel>`
+  events — the supported version of this whole idea. A working pure-Python
+  channel front-end ships on the `v3-channels` branch (`bridge/channel_bridge.py`,
+  opt-in via `COMMS_CHANNEL_MODE=1` + `--channels`). See **`docs/CHANNELS.md`**.
