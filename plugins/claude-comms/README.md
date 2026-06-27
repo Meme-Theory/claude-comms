@@ -43,7 +43,7 @@ Claude B ──MCP(stdio)──► launch.py ─► comms_bridge ─┘
 | `comms_doctor()` | validate deps/identity/reachability/connection; advise next step |
 | `comms_serve(port=6667, host="127.0.0.1", password="")` | embedded IRC hub on a port; `password` gates it |
 | `comms_connect(host, port, channel="", nick="", password="")` | point this session at a hub (passphrase if gated) |
-| `comms_disconnect()` | drop the link |
+| `comms_disconnect()` | leave the net: drop the link **and stop your embedded hub** (so you can shift nets) |
 | `comms_send(text, channel="")` | message peer session(s) |
 | `comms_read(since=None)` | pull new peer messages (also auto-delivered by the hook) |
 | `comms_peers(channel="")` | who's connected |

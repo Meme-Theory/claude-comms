@@ -137,7 +137,7 @@ def _wait_connected(seconds=2.0):
 
 mcp = FastMCP("claude-comms")
 client = IRCClient(HOST, PORT, NICK, CHANNEL, inbox_file=INBOX_FILE, password=PASS)
-_embedded = {"running": False, "addr": None, "gated": False}
+_embedded = {"running": False, "addr": None, "gated": False, "stop": None}
 
 
 # ---- messaging ------------------------------------------------------------
@@ -226,11 +226,12 @@ def comms_serve(port: int = 6667, host: str = "127.0.0.1", connect: bool = True,
         cur = "passphrase-gated" if _embedded.get("gated") else "OPEN (no passphrase)"
         if pw and not _embedded.get("gated"):
             return (f"already serving on {_embedded['addr']} as {cur}. A hub's passphrase "
-                    f"is fixed at startup and cannot be added now — restart the session "
-                    f"to bring up a gated hub.")
-        msg = f"already serving on {_embedded['addr']} ({cur})"
+                    f"is fixed at startup — call comms_disconnect to stop it, then "
+                    f"comms_serve({port}, password=...) to bring up the gated hub.")
+        msg = (f"already serving on {_embedded['addr']} ({cur}); "
+               f"call comms_disconnect first to move to a different hub")
         return msg if not connect else msg + f"; connected={client.is_connected()}"
-    ok, info = ircd_mod.serve_in_thread(host, int(port), password=pw)
+    ok, info, stop = ircd_mod.serve_in_thread(host, int(port), password=pw)
     if not ok:
         return (f"could not start a hub on {host}:{port} -> {info}. "
                 f"If the port is in use a hub may already be running — try "
@@ -238,6 +239,7 @@ def comms_serve(port: int = 6667, host: str = "127.0.0.1", connect: bool = True,
     _embedded["running"] = True
     _embedded["addr"] = info
     _embedded["gated"] = bool(pw)
+    _embedded["stop"] = stop
     out = f"IRC hub listening on {info}{' (passphrase-gated)' if pw else ''}."
     if connect:
         dial = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
@@ -269,9 +271,19 @@ def comms_connect(host: str, port: int, channel: str = "", nick: str = "",
 
 @mcp.tool()
 def comms_disconnect() -> str:
-    """Drop the IRC link (reconnect later with comms_connect / comms_serve)."""
+    """Leave the current net: disconnect this session, and if it is hosting an
+    embedded hub, stop that hub too. Frees you to shift to a different net
+    mid-session via comms_serve(port[, password]) or comms_connect(host, port)."""
     client.pause()
-    return "disconnected. Use comms_connect(host, port) or comms_serve(port) to reconnect."
+    extra = ""
+    if _embedded["running"]:
+        fn = _embedded.get("stop")
+        ok = bool(fn and fn())
+        extra = (f" Stopped the embedded hub on {_embedded['addr']}." if ok
+                 else f" (Embedded hub on {_embedded['addr']} did not stop cleanly.)")
+        _embedded.update({"running": False, "addr": None, "gated": False, "stop": None})
+    return ("disconnected." + extra +
+            " Start fresh with comms_serve(port[, password]) or comms_connect(host, port).")
 
 
 @mcp.tool()

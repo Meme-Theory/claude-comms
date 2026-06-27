@@ -295,30 +295,31 @@ class Server:
         await self.disconnect(c)
 
 
-async def serve_async(host, port, on_ready=None, password=None):
-    """Run the IRC server until cancelled. Calls on_ready() once bound."""
-    server = Server(password=password)
-    srv = await asyncio.start_server(server.handle, host, port)
-    if on_ready:
-        on_ready()
-    addrs = ", ".join(str(s.getsockname()) for s in srv.sockets)
-    log(f"ClaudeComms IRC listening on {addrs}")
-    async with srv:
-        await srv.serve_forever()
-
-
 def serve_in_thread(host, port, timeout=2.5, password=None):
-    """Start the IRC server on a daemon thread. Returns (ok, info_or_error).
-    Blocks up to `timeout` to surface an immediate bind failure (e.g. port in
-    use) instead of leaking it into a background thread. This is what lets the
-    MCP bridge stand up an embedded hub via the comms_serve tool."""
+    """Start the IRC server on a daemon thread. Returns (ok, info_or_error, stop)
+    where stop() shuts the hub down (None on failure). Blocks up to `timeout` to
+    surface an immediate bind failure (e.g. port in use). This lets the MCP bridge
+    stand up an embedded hub (comms_serve) and later tear it down (comms_disconnect)
+    so a session can shift to a new net mid-run."""
     import threading
     ready = threading.Event()
     holder = {}
 
+    async def _serve():
+        server = Server(password=password)
+        srv = await asyncio.start_server(server.handle, host, int(port))
+        holder["loop"] = asyncio.get_running_loop()
+        holder["stop_event"] = asyncio.Event()
+        addrs = ", ".join(str(s.getsockname()) for s in srv.sockets)
+        log(f"ClaudeComms IRC listening on {addrs}")
+        ready.set()
+        async with srv:
+            await holder["stop_event"].wait()  # serve until stop() fires
+        log(f"hub on {host}:{int(port)} stopped")
+
     def _run():
         try:
-            asyncio.run(serve_async(host, int(port), on_ready=ready.set, password=password))
+            asyncio.run(_serve())
         except Exception as e:  # bind error, etc.
             holder["error"] = e
             ready.set()
@@ -326,10 +327,18 @@ def serve_in_thread(host, port, timeout=2.5, password=None):
     threading.Thread(target=_run, name=f"ircd-{port}", daemon=True).start()
     ready.wait(timeout)
     if "error" in holder:
-        return False, str(holder["error"])
+        return False, str(holder["error"]), None
     if not ready.is_set():
-        return False, "server did not start within timeout"
-    return True, f"{host}:{int(port)}"
+        return False, "server did not start within timeout", None
+
+    def stop():
+        loop, ev = holder.get("loop"), holder.get("stop_event")
+        if loop and ev:
+            loop.call_soon_threadsafe(ev.set)
+            return True
+        return False
+
+    return True, f"{host}:{int(port)}", stop
 
 
 async def main():

@@ -52,7 +52,7 @@ def wait_conn(c, seconds=3.0):
 
 def main():
     port = free_port()
-    ok, info = ircd_mod.serve_in_thread("127.0.0.1", port, password=PW)
+    ok, info, _ = ircd_mod.serve_in_thread("127.0.0.1", port, password=PW)
     check("passphrase-gated hub starts", ok)
     clients = []
     try:

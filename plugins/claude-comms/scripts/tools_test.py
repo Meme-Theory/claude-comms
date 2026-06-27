@@ -119,9 +119,27 @@ async def run():
                       "peer" in pr.get("peers", []) and "claude-host" in pr.get("peers", []))
 
                 await session.call_tool("comms_disconnect", {})
-                time.sleep(0.4)
+                time.sleep(0.6)
                 doc3 = payload(await session.call_tool("comms_doctor", {}))
                 check("comms_disconnect drops the link", doc3.get("connected") is False)
+
+                # disconnect stopped the embedded hub -> the old port is closed
+                old_down = False
+                try:
+                    socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                except OSError:
+                    old_down = True
+                check("comms_disconnect stopped the embedded hub", old_down)
+
+                # ...and we can shift to a NEW gated hub mid-session
+                port2 = free_port()
+                served2 = payload(await session.call_tool(
+                    "comms_serve", {"port": port2, "password": "coolbeans"}))
+                check(f"shift: stand up a new gated hub after disconnect [{served2}]",
+                      isinstance(served2, str) and "listening" in served2)
+                doc4 = payload(await session.call_tool("comms_doctor", {}))
+                check("shift: connected to the new gated hub (auth on)",
+                      doc4.get("connected") is True and doc4.get("auth") == "on")
     finally:
         if peer:
             peer.stop()
