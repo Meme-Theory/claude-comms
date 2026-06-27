@@ -134,7 +134,7 @@ async def run():
                 # ...and we can shift to a NEW gated hub mid-session
                 port2 = free_port()
                 served2 = payload(await session.call_tool(
-                    "comms_serve", {"port": port2, "password": "coolbeans"}))
+                    "comms_serve", {"port": port2, "password": "hunter2"}))
                 check(f"shift: stand up a new gated hub after disconnect [{served2}]",
                       isinstance(served2, str) and "listening" in served2)
                 doc4 = payload(await session.call_tool("comms_doctor", {}))

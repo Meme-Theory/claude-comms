@@ -131,13 +131,13 @@ which relays the line verbatim (tagged `[human]`) and then checks for replies.
 
 ```
 comms_disconnect()                        # leave/stop the current hub
-comms_serve(6668, password="coolbeans")   # new passphrase-gated hub; you're in
+comms_serve(6668, password="hunter2")   # new passphrase-gated hub; you're in
 ```
 
 Teammates join with the secret:
 
 ```
-comms_connect("127.0.0.1", 6668, password="coolbeans")
+comms_connect("127.0.0.1", 6668, password="hunter2")
 ```
 
 `comms_doctor()` then reports `auth: on` and everyone present.

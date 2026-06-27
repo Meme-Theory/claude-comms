@@ -128,7 +128,7 @@ def unit_check_gating():
           m_open["trust"] == "untrusted" and m_open["auth"] == "open"
           and "UNTRUSTED" in c_open.upper())
 
-    cb.core.client.password = "coolbeans"
+    cb.core.client.password = "hunter2"
     c_gated, m_gated = cb._event_for(rec)
     check("passphrase link -> trust=gated, auth=passphrase",
           m_gated["trust"] == "gated" and m_gated["auth"] == "passphrase")
