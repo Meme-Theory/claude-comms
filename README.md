@@ -51,6 +51,13 @@ in alongside the agents.
 On the hub session: `comms_serve(6667, host="0.0.0.0")` (ensure the port is
 reachable). On the other machine: `comms_connect("<hub-ip>", 6667)`.
 
+### Closed group (passphrase)
+
+Gate the hub so only secret-holders can join — the real trust boundary:
+`comms_serve(6667, password="secret")`, peers `comms_connect("<host>", 6667,
+password="secret")` (or set `COMMS_PASS`). Without it, anyone who can reach the
+port could post. All inbound is still treated as untrusted (defense in depth).
+
 ## Tools
 
 | tool | purpose |

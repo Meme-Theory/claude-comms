@@ -55,9 +55,13 @@ def _chunks(s, n):
     return [s[i:i + n] for i in range(0, len(s), n)] if s else []
 
 
+_UNSET = object()  # sentinel: distinguish "leave password unchanged" from "set to None"
+_MAX_LINE_BYTES = 65536  # drop a server that streams one oversized line (DoS guard)
+
+
 class IRCClient:
     def __init__(self, host, port, nick, channel, realname=None, max_buffer=2000,
-                 inbox_file=None):
+                 inbox_file=None, password=None):
         self.host = host
         self.port = int(port)
         self.nick = nick
@@ -65,18 +69,41 @@ class IRCClient:
         self.realname = realname or f"ClaudeComms {nick}"
         self.max_buffer = max_buffer
         self.inbox_file = inbox_file  # write-through log for hook-based delivery
+        self.password = password      # shared-secret hub gate (IRC PASS)
+        self._auth_failed = False
 
         self._sock = None
         self._lock = threading.RLock()
         self._send_lock = threading.Lock()
         self._inbox = []           # list of dicts: idx, ts, from, target, text
-        self._idx = 0              # monotonic message counter
+        self._idx = self._seed_idx()  # monotonic counter, continued past inbox.jsonl
         self._cursor = 0           # last index returned by read(mark_read=True)
         self._members = {}         # channel -> set(nick)
         self._connected = threading.Event()
         self._stop = threading.Event()
         self._paused = threading.Event()  # set = stop maintaining the connection
         self._thread = threading.Thread(target=self._run, name=f"irc-{nick}", daemon=True)
+
+    def _seed_idx(self):
+        """Continue the message index past whatever is already in inbox.jsonl, so a
+        bridge restart doesn't reuse low idx values the hook's persistent cursor has
+        already passed (which would make the hook silently skip new messages)."""
+        if not self.inbox_file or not os.path.isfile(self.inbox_file):
+            return 0
+        last = 0
+        try:
+            with open(self.inbox_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        last = max(last, int(json.loads(line).get("idx", 0)))
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        return last
 
     # ---- lifecycle -------------------------------------------------------
 
@@ -101,6 +128,9 @@ class IRCClient:
     def is_connected(self):
         return self._connected.is_set()
 
+    def auth_failed(self):
+        return self._auth_failed
+
     def _close_sock(self):
         try:
             if self._sock:
@@ -108,8 +138,8 @@ class IRCClient:
         except Exception:
             pass
 
-    def reconfigure(self, host=None, port=None, channel=None, nick=None):
-        """Point at a new server/port/channel/nick and force a reconnect.
+    def reconfigure(self, host=None, port=None, channel=None, nick=None, password=_UNSET):
+        """Point at a new server/port/channel/nick/password and force a reconnect.
         Backs the comms_connect / comms_serve tools (runtime, segregated from
         the MCP server's own startup)."""
         with self._lock:
@@ -121,6 +151,9 @@ class IRCClient:
                 self.channel = channel
             if nick:
                 self.nick = nick
+            if password is not _UNSET:
+                self.password = password or None
+        self._auth_failed = False
         self._paused.clear()
         self._connected.clear()
         self._close_sock()
@@ -163,6 +196,8 @@ class IRCClient:
         _log(f"connecting to {self.host}:{self.port} as {self.nick}")
         self._sock = socket.create_connection((self.host, self.port), timeout=10)
         self._sock.settimeout(None)
+        if self.password:
+            self._raw_send(f"PASS :{self.password}")  # colon-framed: allows spaces
         self._raw_send(f"NICK {self.nick}")
         self._raw_send(f"USER {self.nick} 0 * :{self.realname}")
 
@@ -177,6 +212,8 @@ class IRCClient:
                 line = raw.decode("utf-8", "replace").rstrip("\r")
                 if line:
                     self._handle_line(line)
+            if len(buf) > _MAX_LINE_BYTES:
+                raise ConnectionError("oversized line from server")
 
     def _raw_send(self, line):
         with self._send_lock:
@@ -219,6 +256,12 @@ class IRCClient:
             self.nick = self.nick + "_"
             _log(f"nick in use; retrying as {self.nick}")
             self._raw_send(f"NICK {self.nick}")
+            return
+
+        if cmd == "464":  # ERR_PASSWDMISMATCH
+            _log("authentication failed: wrong or missing passphrase (COMMS_PASS)")
+            self._auth_failed = True
+            self.pause()
             return
 
         if cmd == "PRIVMSG":

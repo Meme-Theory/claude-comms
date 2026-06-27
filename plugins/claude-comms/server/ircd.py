@@ -16,10 +16,15 @@ Run:
 
 import argparse
 import asyncio
+import os
 import sys
 
 SERVER_NAME = "claudecomms"
 VERSION = "claudecomms-1"
+MAX_LINE_BYTES = 65536  # drop a peer that streams one oversized line (pre-auth DoS guard)
+# Commands allowed before registration completes; everything else requires the
+# passphrase/registration first (prevents pre-auth WHO/NAMES enumeration).
+_PREAUTH_COMMANDS = {"pass", "nick", "user", "cap", "quit", "ping", "pong"}
 
 
 def log(*a):
@@ -52,6 +57,7 @@ class Client:
         self.realname = None
         self.registered = False
         self.channels = set()
+        self.password = None
 
     @property
     def host(self):
@@ -71,8 +77,9 @@ class Client:
 
 
 class Server:
-    def __init__(self, name=SERVER_NAME):
+    def __init__(self, name=SERVER_NAME, password=None):
         self.name = name
+        self.password = password or None
         self.clients = set()
         self.nicks = {}        # nick -> Client
         self.channels = {}     # channel -> set(Client)
@@ -95,6 +102,9 @@ class Server:
                     line = raw.decode("utf-8", "replace").rstrip("\r")
                     if line:
                         await self.on_line(c, line)
+                if len(buf) > MAX_LINE_BYTES:
+                    log(f"oversized line from {c.host}; closing connection")
+                    break
         except (ConnectionResetError, asyncio.CancelledError):
             pass
         except Exception as e:
@@ -128,6 +138,9 @@ class Server:
             if c.registered:
                 await c.send(f":{self.name} 421 {c.nick} {cmd} :Unknown command")
             return
+        if not c.registered and cmd.lower() not in _PREAUTH_COMMANDS:
+            await c.send(f":{self.name} 451 {cmd} :You have not registered")
+            return
         await handler(c, args, trailing)
 
     # ---- registration ----------------------------------------------------
@@ -142,6 +155,9 @@ class Server:
         elif sub == "LIST":
             await c.send(f":{self.name} CAP * LIST :")
         # END requires no reply
+
+    async def cmd_pass(self, c, args, trailing):
+        c.password = trailing if trailing is not None else (args[0] if args else "")
 
     async def cmd_nick(self, c, args, trailing):
         nick = (args[0] if args else trailing or "").strip()
@@ -173,6 +189,11 @@ class Server:
 
     async def try_register(self, c):
         if c.registered or not (c.nick and c.user):
+            return
+        if self.password is not None and c.password != self.password:
+            await c.send(f":{self.name} 464 {c.nick} :Password incorrect")
+            log(f"rejected {c.nick} ({c.host}): bad password")
+            await self.disconnect(c)
             return
         c.registered = True
         log(f"registered {c.nick} ({c.host})")
@@ -274,9 +295,9 @@ class Server:
         await self.disconnect(c)
 
 
-async def serve_async(host, port, on_ready=None):
+async def serve_async(host, port, on_ready=None, password=None):
     """Run the IRC server until cancelled. Calls on_ready() once bound."""
-    server = Server()
+    server = Server(password=password)
     srv = await asyncio.start_server(server.handle, host, port)
     if on_ready:
         on_ready()
@@ -286,7 +307,7 @@ async def serve_async(host, port, on_ready=None):
         await srv.serve_forever()
 
 
-def serve_in_thread(host, port, timeout=2.5):
+def serve_in_thread(host, port, timeout=2.5, password=None):
     """Start the IRC server on a daemon thread. Returns (ok, info_or_error).
     Blocks up to `timeout` to surface an immediate bind failure (e.g. port in
     use) instead of leaking it into a background thread. This is what lets the
@@ -297,7 +318,7 @@ def serve_in_thread(host, port, timeout=2.5):
 
     def _run():
         try:
-            asyncio.run(serve_async(host, int(port), on_ready=ready.set))
+            asyncio.run(serve_async(host, int(port), on_ready=ready.set, password=password))
         except Exception as e:  # bind error, etc.
             holder["error"] = e
             ready.set()
@@ -316,9 +337,11 @@ async def main():
     ap.add_argument("--host", default="127.0.0.1",
                     help="bind address (127.0.0.1 local, 0.0.0.0 networked)")
     ap.add_argument("--port", type=int, default=6667)
+    ap.add_argument("--password", default=os.environ.get("COMMS_PASS"),
+                    help="require this passphrase (IRC PASS) to connect")
     args = ap.parse_args()
 
-    server = Server()
+    server = Server(password=args.password)
     srv = await asyncio.start_server(server.handle, args.host, args.port)
     addrs = ", ".join(str(s.getsockname()) for s in srv.sockets)
     log(f"ClaudeComms IRC listening on {addrs}")

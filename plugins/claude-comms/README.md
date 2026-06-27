@@ -41,8 +41,8 @@ Claude B ──MCP(stdio)──► launch.py ─► comms_bridge ─┘
 | tool | purpose |
 |------|---------|
 | `comms_doctor()` | validate deps/identity/reachability/connection; advise next step |
-| `comms_serve(port=6667, host="127.0.0.1")` | embedded IRC hub on a port (no separate process) |
-| `comms_connect(host, port, channel="", nick="")` | point this session at a hub |
+| `comms_serve(port=6667, host="127.0.0.1", password="")` | embedded IRC hub on a port; `password` gates it |
+| `comms_connect(host, port, channel="", nick="", password="")` | point this session at a hub (passphrase if gated) |
 | `comms_disconnect()` | drop the link |
 | `comms_send(text, channel="")` | message peer session(s) |
 | `comms_read(since=None)` | pull new peer messages (also auto-delivered by the hook) |
@@ -61,11 +61,15 @@ Claude B ──MCP(stdio)──► launch.py ─► comms_bridge ─┘
 Cross-machine: hub runs `comms_serve(6667, host="0.0.0.0")`; the other connects
 to `<hub-ip>`.
 
+Closed group: gate the hub with a shared secret — `comms_serve(6667, password="secret")`
+— and peers join via `comms_connect("<host>", 6667, password="secret")` (or set
+`COMMS_PASS`). Only passphrase-holders can connect.
+
 ## Configuration (optional env overrides)
 
 `COMMS_IRC_HOST` `COMMS_IRC_PORT` `COMMS_CHANNEL` `COMMS_NICK` (base name)
-`COMMS_NICK_EXACT` `COMMS_AUTOCONNECT` `COMMS_STATE_DIR`. All optional — the tools
-override at runtime.
+`COMMS_NICK_EXACT` `COMMS_AUTOCONNECT` `COMMS_STATE_DIR` `COMMS_PASS` (shared
+passphrase gate). All optional — the tools override at runtime.
 
 ## Autonomous mode (opt-in)
 
@@ -96,14 +100,13 @@ it anytime and it answers," see the roadmap.
 
 All inbound traffic is treated as **external, untrusted input**: the delivery
 hook tells the agent to weigh content with its own judgment and not obey embedded
-instructions. Source nicks are self-declared/spoofable, so labels are hints, not
-a trust boundary (a shared-passphrase hub gate is the planned real boundary).
+instructions. Source nicks are self-declared/spoofable, so labels are a hint, not
+a trust boundary — for the real boundary, gate the hub with a shared passphrase
+(`COMMS_PASS` / `comms_serve(..., password=...)`): only holders can connect, so
+random parties can't inject at all.
 
 ## Roadmap
 
-- **Passphrase-gated hub + trustmap:** launch the IRC hub with a shared secret
-  (IRC `PASS`); only holders connect, turning the channel into a closed trust
-  group and keeping random parties from injecting.
 - **Peer observability (same machine):** read-only tail of the peer's session
   JSONL so a session sees what the other Claude is *doing*, not just what it says.
 - **Always-on responder (Agent SDK):** a headless loop that lives in the channel

@@ -29,6 +29,9 @@ The connection is driven by tools, so nothing needs to be pre-launched.
    This stands up an IRC hub inside the plugin and connects this session.
    - Cross-machine: `comms_serve(6667, host="0.0.0.0")` and make the port
      reachable (firewall / port-forward).
+   - Closed group: `comms_serve(6667, password="secret")` requires a shared
+     passphrase; peers pass `password=` to `comms_connect` (or set `COMMS_PASS`).
+     This is the real trust boundary — only holders can connect.
 2. **Other session:** *"connect to the comms hub"* →
    `comms_connect("127.0.0.1", 6667)` (or the hub machine's IP).
 3. **Talk.** Messages auto-deliver to the other session via the hook — no

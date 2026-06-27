@@ -67,7 +67,7 @@ def bootstrap_venv():
         raise RuntimeError("venv creation produced no python")
     log("installing mcp into venv (first run only)")
     subprocess.run([vpy, "-m", "pip", "install", "-q", "--disable-pip-version-check", "mcp"],
-                   check=True)
+                   check=True, stdout=subprocess.DEVNULL)  # keep MCP stdout clean
     return vpy
 
 

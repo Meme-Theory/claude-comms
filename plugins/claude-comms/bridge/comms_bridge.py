@@ -47,6 +47,15 @@ def _truthy(v):
     return str(v).lower() in ("1", "true", "yes", "on")
 
 
+def _int_env(key, default):
+    """Parse an int env var, falling back to default on empty/non-numeric so the
+    bridge never crashes at import (which would surface as a -32000)."""
+    try:
+        return int(os.environ.get(key, "") or default)
+    except (TypeError, ValueError):
+        return int(default)
+
+
 def _session_id():
     """Stable id for THIS Claude Code session so the bridge self-names uniquely:
       1) CLAUDE_CODE_SESSION_ID / CLAUDE_SESSION_ID (set for subprocesses)
@@ -97,8 +106,9 @@ def _state_dir():
 
 
 HOST = os.environ.get("COMMS_IRC_HOST", "127.0.0.1")
-PORT = int(os.environ.get("COMMS_IRC_PORT", "6667"))
+PORT = _int_env("COMMS_IRC_PORT", 6667)
 CHANNEL = os.environ.get("COMMS_CHANNEL", "#project")
+PASS = os.environ.get("COMMS_PASS") or None
 NICK = _derive_nick()
 STATE_DIR = _state_dir()
 INBOX_FILE = os.path.join(STATE_DIR, "inbox.jsonl")
@@ -126,8 +136,8 @@ def _wait_connected(seconds=2.0):
 
 
 mcp = FastMCP("claude-comms")
-client = IRCClient(HOST, PORT, NICK, CHANNEL, inbox_file=INBOX_FILE)
-_embedded = {"running": False, "addr": None}
+client = IRCClient(HOST, PORT, NICK, CHANNEL, inbox_file=INBOX_FILE, password=PASS)
+_embedded = {"running": False, "addr": None, "gated": False}
 
 
 # ---- messaging ------------------------------------------------------------
@@ -140,7 +150,10 @@ def comms_send(text: str, channel: str = "") -> str:
     if not client.is_connected():
         return ("NOT CONNECTED. Run comms_doctor to diagnose, then comms_serve(port) "
                 "to host a hub here or comms_connect(host, port) to join one.")
-    n = client.send(text, target)
+    try:
+        n = client.send(text, target)
+    except Exception as e:
+        return f"send failed (link dropped mid-send?): {e}. Run comms_doctor."
     return f"sent {n} line(s) to {target} as {client.nick}"
 
 
@@ -178,11 +191,15 @@ def comms_doctor() -> dict:
         "target": f"{client.host}:{client.port}",
         "irc_server_reachable": reachable,
         "connected": connected,
+        "auth": "failed" if client.auth_failed() else ("on" if client.password else "off"),
         "embedded_server": _embedded["addr"] if _embedded["running"] else None,
         "peers": peers,
         "state_dir": STATE_DIR,
     }
-    if connected:
+    if client.auth_failed():
+        report["advice"] = ("Rejected: wrong/missing passphrase. Reconnect with "
+                            "comms_connect(host, port, password=...) or set COMMS_PASS.")
+    elif connected:
         report["advice"] = f"Healthy — {len(peers)} present on {client.channel}."
     elif reachable:
         report["advice"] = ("Hub reachable but not joined yet — wait a moment or call "
@@ -195,38 +212,54 @@ def comms_doctor() -> dict:
 
 
 @mcp.tool()
-def comms_serve(port: int = 6667, host: str = "127.0.0.1", connect: bool = True) -> str:
+def comms_serve(port: int = 6667, host: str = "127.0.0.1", connect: bool = True,
+                password: str = "") -> str:
     """Stand up an embedded IRC hub on a specific port — no separate process needed.
-    Use host='0.0.0.0' to accept peers from other machines. By default this session
-    also connects to the new hub."""
+    Use host='0.0.0.0' to accept peers from other machines. Set `password` (or
+    COMMS_PASS) to require a shared passphrase — only holders can connect (a closed
+    trust group). By default this session also connects to the new hub."""
+    pw = (password or PASS) or None
     if _embedded["running"]:
-        msg = f"already serving on {_embedded['addr']}"
+        cur = "passphrase-gated" if _embedded.get("gated") else "OPEN (no passphrase)"
+        if pw and not _embedded.get("gated"):
+            return (f"already serving on {_embedded['addr']} as {cur}. A hub's passphrase "
+                    f"is fixed at startup and cannot be added now — restart the session "
+                    f"to bring up a gated hub.")
+        msg = f"already serving on {_embedded['addr']} ({cur})"
         return msg if not connect else msg + f"; connected={client.is_connected()}"
-    ok, info = ircd_mod.serve_in_thread(host, int(port))
+    ok, info = ircd_mod.serve_in_thread(host, int(port), password=pw)
     if not ok:
         return (f"could not start a hub on {host}:{port} -> {info}. "
                 f"If the port is in use a hub may already be running — try "
                 f"comms_connect('127.0.0.1', {port}).")
     _embedded["running"] = True
     _embedded["addr"] = info
-    out = f"IRC hub listening on {info}."
+    _embedded["gated"] = bool(pw)
+    out = f"IRC hub listening on {info}{' (passphrase-gated)' if pw else ''}."
     if connect:
         dial = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
-        client.reconfigure(host=dial, port=int(port))
+        client.reconfigure(host=dial, port=int(port), password=pw)
         ok2 = _wait_connected(3.0)
         out += f" This session {'connected' if ok2 else 'is connecting'} as {client.nick}."
     return out
 
 
 @mcp.tool()
-def comms_connect(host: str, port: int, channel: str = "", nick: str = "") -> str:
+def comms_connect(host: str, port: int, channel: str = "", nick: str = "",
+                  password: str = "") -> str:
     """Point this session at a specific IRC hub (host/port), optionally changing
-    channel/nick. Validates reachability first."""
+    channel/nick. If the hub is passphrase-gated, pass `password` explicitly.
+    (COMMS_PASS is NOT auto-sent to arbitrary hosts, to avoid leaking your secret.)
+    Validates reachability first."""
     if not _tcp_reachable(host, port):
         return (f"{host}:{port} is not reachable. Is a hub running there? On that "
                 f"machine run comms_serve({port}, host='0.0.0.0').")
-    client.reconfigure(host=host, port=int(port), channel=channel or None, nick=nick or None)
+    pw = password or None
+    client.reconfigure(host=host, port=int(port), channel=channel or None,
+                       nick=nick or None, password=pw)
     ok = _wait_connected(3.0)
+    if not ok and client.auth_failed():
+        return f"REJECTED by {host}:{port}: wrong or missing passphrase."
     return (f"{'connected to' if ok else 'connecting to'} {host}:{port} "
             f"as {client.nick} on {client.channel}")
 
@@ -243,7 +276,10 @@ def comms_join(channel: str) -> str:
     """Join an additional channel/room."""
     if not client.is_connected():
         return "NOT CONNECTED — connect first (run comms_doctor for help)."
-    client.join(channel)
+    try:
+        client.join(channel)
+    except Exception as e:
+        return f"join failed (link dropped?): {e}. Run comms_doctor."
     return f"joined {channel}"
 
 
@@ -255,6 +291,7 @@ def comms_whoami() -> dict:
         "channel": client.channel,
         "server": f"{client.host}:{client.port}",
         "connected": client.is_connected(),
+        "auth": "failed" if client.auth_failed() else ("on" if client.password else "off"),
         "session_id": SESSION_ID,
         "nick_source": SID_SOURCE,
         "state_dir": STATE_DIR,
@@ -264,6 +301,10 @@ def comms_whoami() -> dict:
 
 def main():
     _log(f"starting: nick={NICK} sid={SID_SOURCE} target={HOST}:{PORT} channel={CHANNEL}")
+    if SID_SOURCE == "random":
+        _log("WARNING: no session id from env or filesystem; using a RANDOM id. The "
+             "delivery hook may not find this inbox (check comms_whoami.nick_source). "
+             "Ensure CLAUDE_CODE_SESSION_ID is inherited by the MCP server.")
     # Non-blocking: the MCP server is up instantly; IRC connects in the background.
     client.start(wait=0)
     if not _truthy(os.environ.get("COMMS_AUTOCONNECT", "1")):
